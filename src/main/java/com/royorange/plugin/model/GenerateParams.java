@@ -3,15 +3,28 @@ package com.royorange.plugin.model;
 import com.intellij.psi.PsiDirectory;
 
 public class GenerateParams {
+    //the app package name
     private String appPackageName;
+    //the base package name
     private String basePackageName;
+    //DI package name
     private String diPackageName;
+    //the directory to generate file
     private PsiDirectory directory;
+    //the package name of generated class
     private String generateClassPackageName;
+    //generate class name
     private String className;
+    //generate layout root type
+    private String generateLayoutType;
+    //the specified presenter of the component
+    private String specifiedPresenter;
+    //if create layout
     private boolean isCreateLayout;
-    private boolean isUseDataBinding;
-    private boolean isUsePresenter;
+    private boolean isUseDataBinding = true;
+    private boolean isUsePresenter = true;
+    //the module for di
+    private String moduleName;
 
     public String getBasePackageName() {
         return basePackageName;
@@ -83,5 +96,29 @@ public class GenerateParams {
 
     public void setUsePresenter(boolean usePresenter) {
         isUsePresenter = usePresenter;
+    }
+
+    public String getGenerateLayoutType() {
+        return generateLayoutType;
+    }
+
+    public void setGenerateLayoutType(String generateLayoutType) {
+        this.generateLayoutType = generateLayoutType;
+    }
+
+    public String getSpecifiedPresenter() {
+        return specifiedPresenter;
+    }
+
+    public void setSpecifiedPresenter(String specifiedPresenter) {
+        this.specifiedPresenter = specifiedPresenter;
+    }
+
+    public String getModuleName() {
+        return moduleName;
+    }
+
+    public void setModuleName(String moduleName) {
+        this.moduleName = moduleName;
     }
 }

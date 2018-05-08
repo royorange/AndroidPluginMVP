@@ -4,11 +4,12 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
+import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.xml.XmlAttribute;
 import com.intellij.psi.xml.XmlFile;
-import com.intellij.psi.xml.XmlTag;
 import com.royorange.plugin.model.GenerateParams;
+import com.royorange.plugin.util.Utils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,16 +41,30 @@ public class MVPJavaPresenter extends PresenterImpl {
         }
         PsiClass activityClass = createActivity(packageName,prefix,params);
         PsiFile activityFile = activityClass.getContainingFile();
-        createContract(prefix,activityFile.getContainingDirectory());
-        createPresenter(prefix,activityFile.getContainingDirectory());
-        createModule(prefix,activityFile.getContainingDirectory());
-        updateActivityBindingModule(prefix,params.getDiPackageName(),activityClass);
+
+        if(params.isUsePresenter()){
+            createContract(prefix,activityFile.getContainingDirectory());
+            createPresenter(prefix,activityFile.getContainingDirectory());
+            createModule(prefix,activityFile.getContainingDirectory());
+        }
+        updateActivityBindingModule(prefix,params.getDiPackageName(),params.isUsePresenter(),activityClass);
     }
 
     @Override
     public void generateFragment(Project project, GenerateParams params) {
         this.project = project;
         elementFactory = JavaPsiFacade.getInstance(project).getElementFactory();
+        String packageName = readPackage();
+        String prefix = params.getClassName();
+        int suffixIndex = params.getClassName().lastIndexOf("Fragment");
+        if(suffixIndex >= 0){
+            prefix =  params.getClassName().substring(0,suffixIndex);
+        }
+        PsiClass fragmentClass = createFragment(packageName,prefix,params);
+        PsiFile fragmentFile = fragmentClass.getContainingFile();
+        PsiClass contractClass = createContract(prefix,fragmentFile.getContainingDirectory());
+        PsiClass presenterClass = createPresenter(prefix,fragmentFile.getContainingDirectory());
+        updateModule(params,contractClass,presenterClass);
     }
 
     public void generate(PsiJavaFile file) {
@@ -149,29 +164,35 @@ public class MVPJavaPresenter extends PresenterImpl {
         activityClass.add(createMethod);
         if(isAutoCreateLayout){
             PsiMethod contentViewMethod = elementFactory.createMethodFromText("protected int getContentViewId() {}",activityClass);
-            StringBuilder stringBuilder = new StringBuilder("return R.layout.activity");
-            int lastIndex=0;
-            for(int i=0;i<prefix.length();i++){
-
-                if(i>0){
-                    char character = prefix.charAt(i);
-                    //split by upper character
-                    if(character>='A' && character<='Z'){
-                        stringBuilder.append("_").append(prefix.substring(lastIndex,i).toLowerCase());
-                        lastIndex = i;
-                    }
-                }
-            }
-            if(lastIndex>0){
-                stringBuilder.append("_"+prefix.substring(lastIndex).toLowerCase());
-            }
+            StringBuilder stringBuilder = new StringBuilder("return R.layout.");
+            stringBuilder.append(Utils.splitClassByUnderline("activity",prefix));
             stringBuilder.append(";");
             contentViewMethod.getBody().add(elementFactory.createStatementFromText(stringBuilder.toString(),activityClass));
-//            PsiMethod contentViewMethod = elementFactory.createMethodFromText(stringBuilder.toString(),activityClass);
+//            PsiMethod contentViewMethod = mElementFactory.createMethodFromText(stringBuilder.toString(),activityClass);
             contentViewMethod.getModifierList().addAnnotation("Override");
             activityClass.add(contentViewMethod);
         }
     }
+
+    private PsiClass createFragment(String packageName,String prefix,GenerateParams params){
+        PsiClass fragmentClass = createClassFileIfNotExist(params.getClassName(),"",params.getDirectory());
+        PsiFile fragmentFile = fragmentClass.getContainingFile();
+        List<String> importList = new ArrayList<>();
+        StringBuilder stringBuilder = new StringBuilder();
+        String contractName = prefix + "Contract";
+        String bindingName = "Fragment" + prefix + "Binding";
+        importList.add(packageName + ".databinding." + bindingName);
+        importList.add(params.getBasePackageName()+".BaseFragment");
+        stringBuilder.append("BaseFragment<").append(contractName).append(".Presenter,")
+                .append(bindingName).append(">");
+        String extendedClass = stringBuilder.toString();
+        fragmentClass.getExtendsList().add(elementFactory.createReferenceFromText(extendedClass,fragmentClass));
+        fragmentClass.getImplementsList().add(elementFactory.createReferenceFromText(contractName + ".View",fragmentClass));
+        importList.add(packageName + ".R");
+        addImport((PsiJavaFile) fragmentFile.getContainingFile(),importList);
+        return fragmentClass;
+    }
+
 
     private void generateFragmentProcess(PsiJavaFile file,PsiClass fragmentClass){
         String prefix;
@@ -197,15 +218,16 @@ public class MVPJavaPresenter extends PresenterImpl {
         }
     }
 
-    private void createContract(String prefix,PsiDirectory directory){
+    private PsiClass createContract(String prefix,PsiDirectory directory){
         PsiClass contract = createClassFileIfNotExist(prefix,"Contract",directory);
         //add View
         addInnerInterface(contract,"View","BaseView");
         //add Presenter
         addInnerInterface(contract,"Presenter","BasePresenter","View");
+        return contract;
     }
 
-    private void createPresenter(String prefix,PsiDirectory directory){
+    private PsiClass createPresenter(String prefix,PsiDirectory directory){
         PsiClass presenter = createClassFileIfNotExist(prefix,"Presenter",directory);
         String contractView = prefix + "Contract.View";
         String contractPresenter = prefix + "Contract.Presenter";
@@ -217,6 +239,7 @@ public class MVPJavaPresenter extends PresenterImpl {
         if(presenter.getImplementsList().getReferencedTypes().length == 0){
             presenter.getImplementsList().add(elementFactory.createReferenceFromText(contractPresenter,presenter));
         }
+        return presenter;
     }
 
     private void createModule(String prefix,PsiDirectory directory){
@@ -231,6 +254,39 @@ public class MVPJavaPresenter extends PresenterImpl {
             module.getModifierList().addAnnotation("Module");
         }
         generatePresenterInModule(prefix,module);
+    }
+
+    private void updateModule(GenerateParams params,PsiClass contractClass,PsiClass presenterClass){
+        PsiClass psiClass = JavaPsiFacade.getInstance(project).findClass(params.getModuleName(), GlobalSearchScope.projectScope(project));
+        PsiJavaFile psiJavaFile = (PsiJavaFile)psiClass.getContainingFile();
+        if(psiClass!=null){
+            List<String> importList = new ArrayList<>();
+            String modulePackage = psiJavaFile.getPackageName();
+            if(!modulePackage.equals(((PsiJavaFile)contractClass.getContainingFile()).getPackageName())){
+                importList.add(contractClass.getQualifiedName());
+            }
+            if(!modulePackage.equals(((PsiJavaFile)presenterClass.getContainingFile()).getPackageName())){
+                importList.add(presenterClass.getQualifiedName());
+            }
+            importList.add(params.getDiPackageName()+".scope.FragmentScoped");
+            //add import
+            addImport(psiJavaFile,importList);
+            String methodName = params.getClassName();
+            if(methodName.length()>1){
+                methodName = methodName.substring(0,1)+methodName.substring(1);
+            }else {
+                methodName.toLowerCase();
+            }
+            StringBuilder sb = new StringBuilder("@FragmentScoped\n" +
+                    "    @ContributesAndroidInjector");
+            sb.append("\n    abstract ")
+                    .append(params.getClassName())
+                    .append(" ")
+                    .append(methodName)
+                    .append("();");
+            PsiMethod method = elementFactory.createMethodFromText(sb.toString(),psiClass);
+            psiClass.add(method);
+        }
     }
 
     private void generatePresenterInModule(String prefix,PsiClass module){
@@ -355,7 +411,7 @@ public class MVPJavaPresenter extends PresenterImpl {
 //                    if(!needAdd.endsWith(";")){
 //                        needAdd+=";";
 //                    }
-//                    element = importList.add(elementFactory.createStatementFromText(needAdd,psiClass));
+//                    element = importList.add(mElementFactory.createStatementFromText(needAdd,psiClass));
                     element = importList.add(elementFactory.createImportStatementOnDemand(needAdd));
                 }
             }
@@ -363,8 +419,8 @@ public class MVPJavaPresenter extends PresenterImpl {
         return element;
     }
 
-    private void updateActivityBindingModule(String prefix,String diPackage,PsiClass activityClass){
-        String bindingDirector = project.getBasePath()+"/app/src/main/java/"+diPackage.replace(".","/")+"/module/";
+    private void updateActivityBindingModule(String prefix,String diPackage,boolean isUsePresenter,PsiClass activityClass){
+        String bindingDirector = project.getBasePath()+"/app/src/main/java/"+diPackage.replace(".","/")+"/modules/";
         VirtualFile virtualDirector = LocalFileSystem.getInstance().findFileByPath(bindingDirector);
         PsiClass activityBindingModule = null;
         if(virtualDirector == null){
@@ -374,29 +430,34 @@ public class MVPJavaPresenter extends PresenterImpl {
             if(bindVirtual == null){
                 //create file
                 activityBindingModule = JavaDirectoryService.getInstance().createClass(PsiManager.getInstance(project).findDirectory(virtualDirector),"ActivityBindingModule");
+                activityBindingModule.getModifierList().setModifierProperty(PsiModifier.ABSTRACT,true);
+                activityBindingModule.getModifierList().addAnnotation("Module");
             }else {
                 activityBindingModule = ((PsiJavaFile)PsiManager.getInstance(project).findFile(bindVirtual)).getClasses()[0];
             }
         }
 
-
-        if(!activityBindingModule.getModifierList().hasModifierProperty(PsiModifier.ABSTRACT)){
-            activityBindingModule.getModifierList().setModifierProperty(PsiModifier.ABSTRACT,true);
-        }
         List<String> importList = new ArrayList<>();
         importList.add(diPackage+".scope.ActivityScoped");
         importList.add("dagger.Module");
         importList.add("dagger.android.ContributesAndroidInjector");
+        String packageName = activityClass.getQualifiedName().substring(0,activityClass.getQualifiedName().length()-activityClass.getName().length());
+        //import activity
+        importList.add(activityClass.getQualifiedName());
+        //import module
+        importList.add(packageName+prefix+"PresenterModule");
         String apiName = activityClass.getName();
         if(apiName.length()>1){
             apiName = apiName.substring(0,1).toLowerCase()+apiName.substring(1);
         }
 
         StringBuilder sb = new StringBuilder("@ActivityScoped\n" +
-                "    @ContributesAndroidInjector (modules = ")
-                .append(prefix)
-                .append("Module.class)\n" +
-                        "    abstract ")
+                "    @ContributesAndroidInjector");
+                if(isUsePresenter){
+                    sb.append(" (modules=")
+                      .append(prefix).append("Module.class)");
+                }
+                sb.append("\n    abstract ")
                 .append(activityClass.getName())
                 .append(" ")
                 .append(apiName)
@@ -405,4 +466,5 @@ public class MVPJavaPresenter extends PresenterImpl {
         addImport((PsiJavaFile) activityBindingModule.getContainingFile(),importList);
         activityBindingModule.add(method);
     }
+
 }

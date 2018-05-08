@@ -29,5 +29,9 @@
                 description="Generate MVP Activity">
             <add-to-group group-id="NewJavaSpecialFile" anchor="first"/>
         </action>
+        <action id="com.royorange.generate-fragment" class="com.royorange.plugin.action.MVPFragmentGenerate"
+                text="MVP Fragment" description="generate mvp fragment">
+            <add-to-group group-id="NewGroup" anchor="before" relative-to-action="Android.CreateResourcesActionGroup"/>
+        </action>
     </actions>
 </idea-plugin>

@@ -2,13 +2,20 @@ package com.royorange.plugin.ui;
 
 import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.ide.util.PackageChooserDialog;
+import com.intellij.ide.util.TreeClassChooser;
+import com.intellij.ide.util.TreeClassChooserFactory;
 import com.intellij.openapi.application.Result;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.fileChooser.FileChooser;
+import com.intellij.openapi.fileChooser.FileChooserDescriptor;
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.PackageChooser;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiDirectory;
+import com.intellij.psi.PsiJavaParserFacade;
 import com.intellij.psi.PsiPackage;
 import com.royorange.plugin.constant.Constants;
 import com.royorange.plugin.model.GenerateParams;
@@ -25,30 +32,29 @@ import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GenerateMVPActivity extends JDialog {
+public class GenerateMVPFragment extends JDialog {
     private JPanel contentPane;
     private JButton buttonOK;
     private JButton buttonCancel;
+    private JTextField textFragmentName;
     private JTextField textBasePackage;
     private JButton buttonChooseBasePackage;
-    private JTextField textActivityName;
-    private JTextField textDIName;
+    private JTextField textDIPackage;
     private JButton buttonChooseDI;
-    private JCheckBox checkboxCreateLayout;
-    private JCheckBox checkUseDataBinding;
-    private JCheckBox checkUsePresenter;
+    private JTextField textModuleClass;
+    private JButton buttonChooseModule;
+    private JComboBox comboPresenterType;
     private JComboBox comboSelectLayout;
-    private JComboBox comboPresenter;
+    private JCheckBox checkboxCreateLayout;
     private Project project;
     private GenerateParams params;
     private VirtualFile file;
     private PsiDirectory directory;
     private MVPClassPresenter presenter;
     private ResourcePresenter resourcePresenter;
+    private String modulePath;
 
-
-
-    public GenerateMVPActivity() {
+    public GenerateMVPFragment() {
         presenter = new MVPJavaPresenter();
         resourcePresenter = new ResourcePresenter();
         setContentPane(contentPane);
@@ -57,7 +63,6 @@ public class GenerateMVPActivity extends JDialog {
 
         initView();
         initListener();
-
     }
 
     public void showDialog(Project project,VirtualFile file, PsiDirectory directory){
@@ -68,17 +73,14 @@ public class GenerateMVPActivity extends JDialog {
     }
 
     private void initView(){
-        textDIName.setText(LocalStorage.loadDIPackage());
+        textDIPackage.setText(LocalStorage.loadDIPackage());
         textBasePackage.setText(LocalStorage.loadBasePackage());
-        checkboxCreateLayout.setSelected(LocalStorage.loadCreateLayout());
-        checkUseDataBinding.setSelected(LocalStorage.loadUseDatabinding());
-        checkUsePresenter.setSelected(LocalStorage.loadUsePresenter());
+        textModuleClass.setText(LocalStorage.loadHolderModule());
         setupSelectLayout();
         setupSelectPresenter();
     }
 
     private void setupSelectPresenter(){
-        comboSelectLayout.setEnabled(checkUsePresenter.isSelected());
         List<String> presenter = new ArrayList<>();
         int initIndex = 0;
         String lastType = LocalStorage.loadLayoutType();
@@ -89,8 +91,8 @@ public class GenerateMVPActivity extends JDialog {
             presenter.add(Constants.PRESENTER[i]);
         }
         ComboBoxModel<String> layoutModel = new ListComboBoxModel<String>(presenter);
-        comboPresenter.setModel(layoutModel);
-        comboPresenter.setSelectedIndex(initIndex);
+        comboPresenterType.setModel(layoutModel);
+        comboPresenterType.setSelectedIndex(initIndex);
     }
 
     private void setupSelectLayout(){
@@ -121,7 +123,6 @@ public class GenerateMVPActivity extends JDialog {
                 onCancel();
             }
         });
-
         buttonChooseBasePackage.addActionListener(e -> {
             String packageName = addPatternFilter(textBasePackage);
             if(packageName!=null){
@@ -130,16 +131,21 @@ public class GenerateMVPActivity extends JDialog {
         });
 
         buttonChooseDI.addActionListener(e -> {
-            String packageName = addPatternFilter(textDIName);
+            String packageName = addPatternFilter(textDIPackage);
             if(packageName!=null){
                 LocalStorage.saveDIPackage(packageName);
+            }
+        });
+        buttonChooseModule.addActionListener(e -> {
+            String packageName = addFillePatternFilter(textModuleClass);
+            if(packageName!=null){
+                LocalStorage.saveHolderModule(packageName);
             }
         });
 
         checkboxCreateLayout.addActionListener(e -> {
             comboSelectLayout.setEnabled(checkboxCreateLayout.isSelected());
         });
-
         // call onCancel() when cross is clicked
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
@@ -162,25 +168,24 @@ public class GenerateMVPActivity extends JDialog {
             showError(errorMessage);
             return;
         }
+
         new WriteCommandAction(project){
             @Override
             protected void run(@NotNull Result result) throws Throwable {
                 LocalStorage.saveLayoutType(Constants.LAYOUT[comboSelectLayout.getSelectedIndex()]);
                 params = new GenerateParams();
                 params.setBasePackageName(textBasePackage.getText());
-                params.setDiPackageName(textDIName.getText());
+                params.setDiPackageName(textDIPackage.getText());
                 params.setCreateLayout(checkboxCreateLayout.isSelected());
                 String modulePath = file.getPath().substring(project.getBasePath().length());
                 String temp = modulePath.replace("/",".");
                 int packageIndex = temp.indexOf(Utils.readAndroidPackage(project));
                 params.setGenerateClassPackageName(temp.substring(packageIndex));
                 params.setDirectory(directory);
-                params.setClassName(textActivityName.getText());
-                params.setUseDataBinding(checkUseDataBinding.isSelected());
-                params.setUsePresenter(checkUsePresenter.isSelected());
-                params.setSpecifiedPresenter(comboPresenter.getSelectedItem().toString());
-                presenter.generateActivity(project,params);
-                resourcePresenter.generateActivityInManifest(project,params);
+                params.setClassName(textFragmentName.getText());
+                params.setSpecifiedPresenter(comboPresenterType.getSelectedItem().toString());
+                params.setModuleName(textModuleClass.getText());
+                presenter.generateFragment(project,params);
                 if(checkboxCreateLayout.isSelected()){
                     params.setGenerateLayoutType(comboSelectLayout.getSelectedItem().toString());
                     resourcePresenter.generateLayout(project,params);
@@ -188,20 +193,6 @@ public class GenerateMVPActivity extends JDialog {
             }
         }.execute();
         dispose();
-    }
-
-    private String checkParams(){
-        String errorMessage = null;
-        if(textActivityName.getText() == null||textActivityName.getText().trim().length()==0){
-            return "Activity name can not be empty!";
-        }
-        if(textDIName.getText() == null||textDIName.getText().trim().length()==0){
-            return "Dependency Inject class package should by selected";
-        }
-        if(textBasePackage.getText() == null||textBasePackage.getText().trim().length()==0){
-            return "Dependency Inject class package should by selected";
-        }
-        return errorMessage;
     }
 
     private void onCancel() {
@@ -224,8 +215,34 @@ public class GenerateMVPActivity extends JDialog {
         return packageName;
     }
 
-    public GenerateParams getParams(){
-        return params;
+    protected String addFillePatternFilter(JTextField field) {
+        TreeClassChooser classChooser = TreeClassChooserFactory.getInstance(project).createProjectScopeChooser("select module class");
+        classChooser.showDialog();
+        PsiClass psiClass = classChooser.getSelected();
+        if (psiClass != null) {
+            field.setText(psiClass.getQualifiedName());
+        }else {
+            return null;
+        }
+
+        return psiClass.getQualifiedName();
+    }
+
+    private String checkParams(){
+        String errorMessage = null;
+        if(textFragmentName.getText() == null||textFragmentName.getText().trim().length()==0){
+            return "Fragment name can not be empty!";
+        }
+        if(textModuleClass.getText() == null||textModuleClass.getText().trim().length()==0){
+            return "Module should be specified";
+        }
+        if(textDIPackage.getText() == null||textDIPackage.getText().trim().length()==0){
+            return "Dependency Inject class package should by selected";
+        }
+        if(textBasePackage.getText() == null||textBasePackage.getText().trim().length()==0){
+            return "Dependency Inject class package should by selected";
+        }
+        return errorMessage;
     }
 
     private void showError(String error){

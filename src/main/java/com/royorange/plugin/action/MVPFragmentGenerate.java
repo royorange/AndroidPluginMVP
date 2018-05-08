@@ -4,11 +4,10 @@ import com.intellij.ide.IdeView;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.royorange.plugin.ui.GenerateMVPActivity;
+import com.royorange.plugin.ui.GenerateMVPFragment;
 
-public class MVPActivityGenerate extends AnAction {
-    GenerateMVPActivity dialog = new GenerateMVPActivity();
-
+public class MVPFragmentGenerate extends AnAction {
+    GenerateMVPFragment dialog = new GenerateMVPFragment();
 
     @Override
     public void actionPerformed(AnActionEvent e) {
