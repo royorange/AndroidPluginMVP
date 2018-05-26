@@ -23,4 +23,5 @@ public class MVPActivityGenerate extends AnAction {
             dialog.showDialog(project,file,view.getOrChooseDirectory());
         }
     }
+
 }

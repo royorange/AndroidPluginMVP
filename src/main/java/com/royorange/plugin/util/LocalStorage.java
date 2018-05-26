@@ -9,7 +9,7 @@ public class LocalStorage {
     }
 
     public static String loadBasePackage(){
-        return PropertiesComponent.getInstance().getValue("basePackageName","");
+        return PropertiesComponent.getInstance().getValue("basePackageName","com.arvato.sephora.app.presentation.view.base");
     }
 
     public static void saveLayoutType(String type){
@@ -17,11 +17,15 @@ public class LocalStorage {
     }
 
     public static String loadLayoutType(){
-        return PropertiesComponent.getInstance().getValue("basePackageName","");
+        return PropertiesComponent.getInstance().getValue("layoutType","com.arvato.sephora.app.presentation.view.base");
     }
 
     public static void saveDIPackage(String packageName){
         PropertiesComponent.getInstance().setValue("diPackageName",packageName);
+    }
+
+    public static String loadDIPackage(){
+        return PropertiesComponent.getInstance().getValue("diPackageName","com.arvato.sephora.app.presentation.internal.di");
     }
 
     public static String loadHolderModule(){
@@ -32,8 +36,12 @@ public class LocalStorage {
         PropertiesComponent.getInstance().setValue("holderModule",className);
     }
 
-    public static String loadDIPackage(){
-        return PropertiesComponent.getInstance().getValue("diPackageName","");
+    public static String loadActivityBindingModule(){
+        return PropertiesComponent.getInstance().getValue("activityBindingModule","com.arvato.sephora.app.presentation.internal.di.modules.ActivityBindingModule");
+    }
+
+    public static void saveActivityBindingModule(String className){
+        PropertiesComponent.getInstance().setValue("activityBindingModule",className);
     }
 
     public static void saveCreateLayout(boolean b){

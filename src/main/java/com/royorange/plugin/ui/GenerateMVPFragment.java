@@ -4,19 +4,22 @@ import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.ide.util.PackageChooserDialog;
 import com.intellij.ide.util.TreeClassChooser;
 import com.intellij.ide.util.TreeClassChooserFactory;
+import com.intellij.ide.util.TreeClassChooserFactoryImpl;
 import com.intellij.openapi.application.Result;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleManager;
+import com.intellij.openapi.module.ModuleUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.PackageChooser;
+import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiDirectory;
-import com.intellij.psi.PsiJavaParserFacade;
-import com.intellij.psi.PsiPackage;
+import com.intellij.psi.*;
+import com.intellij.psi.search.GlobalSearchScope;
 import com.royorange.plugin.constant.Constants;
 import com.royorange.plugin.model.GenerateParams;
 import com.royorange.plugin.presenter.MVPClassPresenter;
@@ -28,6 +31,7 @@ import org.jdesktop.swingx.combobox.ListComboBoxModel;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +50,8 @@ public class GenerateMVPFragment extends JDialog {
     private JComboBox comboPresenterType;
     private JComboBox comboSelectLayout;
     private JCheckBox checkboxCreateLayout;
+    private JTextField textDIModule;
+    private JButton buttonChooseDIModule;
     private Project project;
     private GenerateParams params;
     private VirtualFile file;
@@ -53,14 +59,15 @@ public class GenerateMVPFragment extends JDialog {
     private MVPClassPresenter presenter;
     private ResourcePresenter resourcePresenter;
     private String modulePath;
+    private boolean isFirstShow = true;
 
     public GenerateMVPFragment() {
         presenter = new MVPJavaPresenter();
         resourcePresenter = new ResourcePresenter();
+        buttonOK.requestFocusInWindow();
         setContentPane(contentPane);
         setModal(true);
         getRootPane().setDefaultButton(buttonOK);
-
         initView();
         initListener();
     }
@@ -69,6 +76,13 @@ public class GenerateMVPFragment extends JDialog {
         this.file = file;
         this.directory = directory;
         this.project = project;
+        final Toolkit toolkit = Toolkit.getDefaultToolkit();
+        final Dimension screenSize = toolkit.getScreenSize();
+        final int x = (screenSize.width - getWidth()) / 2;
+        final int y = (screenSize.height - getHeight()) / 2;
+        setSize(720,320);
+        setLocation(x,y);
+        isFirstShow = false;
         setVisible(true);
     }
 
@@ -83,15 +97,11 @@ public class GenerateMVPFragment extends JDialog {
     private void setupSelectPresenter(){
         List<String> presenter = new ArrayList<>();
         int initIndex = 0;
-        String lastType = LocalStorage.loadLayoutType();
         for(int i = 0; i < Constants.PRESENTER.length; i++){
-            if(lastType.equals(Constants.PRESENTER[i])){
-                initIndex = i;
-            }
             presenter.add(Constants.PRESENTER[i]);
         }
-        ComboBoxModel<String> layoutModel = new ListComboBoxModel<String>(presenter);
-        comboPresenterType.setModel(layoutModel);
+        ComboBoxModel<String> selectModel = new ListComboBoxModel<String>(presenter);
+        comboPresenterType.setModel(selectModel);
         comboPresenterType.setSelectedIndex(initIndex);
     }
 
@@ -124,20 +134,20 @@ public class GenerateMVPFragment extends JDialog {
             }
         });
         buttonChooseBasePackage.addActionListener(e -> {
-            String packageName = addPatternFilter(textBasePackage);
+            String packageName = addPackagePatternFilter(textBasePackage,LocalStorage.loadBasePackage());
             if(packageName!=null){
                 LocalStorage.saveBasePackage(packageName);
             }
         });
 
         buttonChooseDI.addActionListener(e -> {
-            String packageName = addPatternFilter(textDIPackage);
+            String packageName = addPackagePatternFilter(textDIPackage,LocalStorage.loadDIPackage());
             if(packageName!=null){
                 LocalStorage.saveDIPackage(packageName);
             }
         });
         buttonChooseModule.addActionListener(e -> {
-            String packageName = addFillePatternFilter(textModuleClass);
+            String packageName = addFillPatternClassFilter(textModuleClass,LocalStorage.loadHolderModule());
             if(packageName!=null){
                 LocalStorage.saveHolderModule(packageName);
             }
@@ -160,6 +170,10 @@ public class GenerateMVPFragment extends JDialog {
                 onCancel();
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+
+        contentPane.registerKeyboardAction(e -> {
+            onOK();
+        }, KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), JComponent.WHEN_FOCUSED);
     }
 
     private void onOK() {
@@ -201,8 +215,19 @@ public class GenerateMVPFragment extends JDialog {
     }
 
 
-    protected String addPatternFilter(JTextField field) {
-        PackageChooser chooser = new PackageChooserDialog(CodeInsightBundle.message("coverage.pattern.filter.editor.choose.package.title"), project);
+    protected String addPackagePatternFilter(JTextField field,String defaultPackageName) {
+        PackageChooser chooser;
+        Module module = ModuleManager.getInstance(project).findModuleByName("app");
+        if(module != null){
+            chooser = new PackageChooserDialog(CodeInsightBundle.message("coverage.pattern.filter.editor.choose.package.title"), module);
+        }else {
+            chooser = new PackageChooserDialog(CodeInsightBundle.message("coverage.pattern.filter.editor.choose.package.title"), project);
+        }
+        if(defaultPackageName != null){
+            chooser.selectPackage(defaultPackageName);
+        }else {
+            chooser.selectPackage(Utils.readAndroidPackage(project));
+        }
         chooser.show();
         String packageName = null;
         if (chooser.isOK()) {
@@ -215,8 +240,35 @@ public class GenerateMVPFragment extends JDialog {
         return packageName;
     }
 
-    protected String addFillePatternFilter(JTextField field) {
-        TreeClassChooser classChooser = TreeClassChooserFactory.getInstance(project).createProjectScopeChooser("select module class");
+    private TreeClassChooser initDefaultClassChooser(Module module){
+        TreeClassChooser classChooser = TreeClassChooserFactory.getInstance(project).createProjectScopeChooser("Select Presenter Class");
+        if(module != null){
+            VirtualFile directory = LocalFileSystem.getInstance().findFileByPath(module.getModuleFilePath());
+            PsiDirectory packageDir = PsiManager.getInstance(project).findDirectory(directory);
+            if(packageDir!=null){
+                classChooser.selectDirectory(packageDir);
+            }
+        }
+        return classChooser;
+    }
+
+    protected String addFillPatternClassFilter(JTextField field,String defaultName) {
+        TreeClassChooser classChooser;
+        Module module = ModuleManager.getInstance(project).findModuleByName("app");
+        if(defaultName != null && defaultName.length()>0){
+            GlobalSearchScope scope = module!=null?GlobalSearchScope.moduleScope(module):GlobalSearchScope.projectScope(project);
+            PsiClass psiClass = JavaPsiFacade.getInstance(project).findClass(defaultName, scope);
+            if(psiClass!=null){
+                classChooser = TreeClassChooserFactory.getInstance(project).
+                        createNoInnerClassesScopeChooser("Select Presenter Class", GlobalSearchScope.projectScope(project),
+                                aClass -> true,psiClass);
+                classChooser.select(psiClass);
+            }else {
+                classChooser = initDefaultClassChooser(module);
+            }
+        }else {
+            classChooser = initDefaultClassChooser(module);
+        }
         classChooser.showDialog();
         PsiClass psiClass = classChooser.getSelected();
         if (psiClass != null) {

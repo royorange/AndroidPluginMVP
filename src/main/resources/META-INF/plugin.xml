@@ -25,13 +25,13 @@
             <add-to-group group-id="GenerateGroup" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="shift meta P"/>
         </action>
-        <action id="Generate-MVP-Activity" class="com.royorange.plugin.action.MVPActivityGenerate" text="MVP Activity"
+        <action id="com.royorange.generate-activity" class="com.royorange.plugin.action.MVPActivityGenerate" text="MVP Activity"
                 description="Generate MVP Activity">
             <add-to-group group-id="NewJavaSpecialFile" anchor="first"/>
         </action>
         <action id="com.royorange.generate-fragment" class="com.royorange.plugin.action.MVPFragmentGenerate"
                 text="MVP Fragment" description="generate mvp fragment">
-            <add-to-group group-id="NewGroup" anchor="before" relative-to-action="Android.CreateResourcesActionGroup"/>
+            <add-to-group group-id="NewJavaSpecialFile" anchor="after" relative-to-action="com.royorange.generate-activity"/>
         </action>
     </actions>
 </idea-plugin>

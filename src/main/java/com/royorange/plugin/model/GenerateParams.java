@@ -9,6 +9,8 @@ public class GenerateParams {
     private String basePackageName;
     //DI package name
     private String diPackageName;
+    //DI module package name
+    private String activityBindingModuleClassName;
     //the directory to generate file
     private PsiDirectory directory;
     //the package name of generated class
@@ -20,7 +22,7 @@ public class GenerateParams {
     //the specified presenter of the component
     private String specifiedPresenter;
     //if create layout
-    private boolean isCreateLayout;
+    private boolean isCreateLayout = true;
     private boolean isUseDataBinding = true;
     private boolean isUsePresenter = true;
     //the module for di
@@ -120,5 +122,13 @@ public class GenerateParams {
 
     public void setModuleName(String moduleName) {
         this.moduleName = moduleName;
+    }
+
+    public String getActivityBindingModuleClassName() {
+        return activityBindingModuleClassName;
+    }
+
+    public void setActivityBindingModuleClassName(String activityBindingModuleClassName) {
+        this.activityBindingModuleClassName = activityBindingModuleClassName;
     }
 }
