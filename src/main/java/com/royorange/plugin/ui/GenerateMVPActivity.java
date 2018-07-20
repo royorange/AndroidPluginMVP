@@ -5,6 +5,8 @@ import com.intellij.ide.util.ClassFilter;
 import com.intellij.ide.util.PackageChooserDialog;
 import com.intellij.ide.util.TreeClassChooser;
 import com.intellij.ide.util.TreeClassChooserFactory;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.Result;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.module.Module;
@@ -56,6 +58,7 @@ public class GenerateMVPActivity extends JDialog {
     private MVPClassPresenter presenter;
     private ResourcePresenter resourcePresenter;
     private boolean isFirstShow = true;
+    private TreeClassChooser classChooser = null;
 
 
 
@@ -281,7 +284,6 @@ public class GenerateMVPActivity extends JDialog {
     }
 
     protected String addFillPatternClassFilter(JTextField field,String defaultName) {
-        TreeClassChooser classChooser = null;
         Module module = ModuleManager.getInstance(project).findModuleByName("app");
         if(defaultName != null && defaultName.length()>0){
             GlobalSearchScope scope = module!=null?GlobalSearchScope.moduleScope(module):GlobalSearchScope.projectScope(project);
@@ -290,7 +292,10 @@ public class GenerateMVPActivity extends JDialog {
                 classChooser = TreeClassChooserFactory.getInstance(project).
                         createNoInnerClassesScopeChooser("Select Binding Class", GlobalSearchScope.projectScope(project),
                                 aClass -> true,psiClass);
-                classChooser.select(psiClass);
+                //workaround for version:173.x
+                //https://intellij-support.jetbrains.com/hc/en-us/community/posts/360000611384-Plugin-not-work-properly-in-Android-Studio?page=1#community_comment_360000204784
+                ApplicationManager.getApplication().invokeLater(() -> classChooser.select(psiClass), ModalityState.any());
+//                classChooser.select(psiClass);
             }else {
                 classChooser = initDefaultClassChooser(module);
             }

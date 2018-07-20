@@ -133,6 +133,7 @@ public class MVPJavaPresenter extends PresenterImpl {
         List<String> importList = new ArrayList<>();
         importList.add("android.os.Bundle");
         importList.add("android.content.Intent");
+        importList.add("android.content.Context");
         StringBuilder stringBuilder = new StringBuilder();
         String contractName = prefix + "Contract";
         if(params.isUseDataBinding()){
@@ -492,7 +493,7 @@ public class MVPJavaPresenter extends PresenterImpl {
                 "    @ContributesAndroidInjector");
                 if(params.isUseDataBinding()){
                     sb.append(" (modules=")
-                      .append(prefix).append("Module.class)");
+                      .append(prefix).append("PresenterModule.class)");
                 }
                 sb.append("\n    abstract ")
                 .append(activityClass.getName())

@@ -5,6 +5,8 @@ import com.intellij.ide.util.PackageChooserDialog;
 import com.intellij.ide.util.TreeClassChooser;
 import com.intellij.ide.util.TreeClassChooserFactory;
 import com.intellij.ide.util.TreeClassChooserFactoryImpl;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.Result;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileChooser.FileChooser;
@@ -260,9 +262,10 @@ public class GenerateMVPFragment extends JDialog {
             PsiClass psiClass = JavaPsiFacade.getInstance(project).findClass(defaultName, scope);
             if(psiClass!=null){
                 classChooser = TreeClassChooserFactory.getInstance(project).
-                        createNoInnerClassesScopeChooser("Select Presenter Class", GlobalSearchScope.projectScope(project),
+                        createNoInnerClassesScopeChooser("Select Presenter Module Class", GlobalSearchScope.projectScope(project),
                                 aClass -> true,psiClass);
-                classChooser.select(psiClass);
+                ApplicationManager.getApplication().invokeLater(() -> classChooser.select(psiClass), ModalityState.any());
+
             }else {
                 classChooser = initDefaultClassChooser(module);
             }
